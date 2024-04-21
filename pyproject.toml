@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "search-game"
+version = "0.1.0"
+description = "dfs and bfs search game using pygame"
+authors = ["WolfEYc <wolfeycode@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pygame = "^2.5.2"
+numpy = "^1.26.4"
+
+[tool.poetry.scripts]
+main = "search_game.main:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
