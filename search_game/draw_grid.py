@@ -71,7 +71,7 @@ class PlacementColorPalette(Renderable, GameObject):
             pygame.draw.rect(screen, color, rect)
 
     def update(self):
-        if not GLOBAL_STATE.any_event(pygame.MOUSEBUTTONDOWN):
+        if GLOBAL_STATE.any_event(pygame.MOUSEBUTTONDOWN):
             return
         mouse_presses = pygame.mouse.get_pressed()
         if not mouse_presses[0]:
@@ -113,15 +113,6 @@ class PlacementColorPalette(Renderable, GameObject):
         )
 
 
-def init():
-    default_placement_color_ui = CurrentPlacementColorDisplay.default()
-    default_color_palette_ui = PlacementColorPalette.default()
-    GLOBAL_STATE.game_objects.append(default_color_palette_ui)
-    GLOBAL_STATE.renderdict[RenderLayer.UI].extend(
-        [default_placement_color_ui, default_color_palette_ui]
-    )
-
-
 def handle_left_mouse():
     pos = pygame.mouse.get_pos()
     pos = pygame.Vector2(pos)
@@ -148,3 +139,12 @@ def create_grid_loop():
         handle_left_mouse()
     if pressed_tuple[2]:
         handle_right_mouse()
+
+
+def init():
+    default_placement_color_ui = CurrentPlacementColorDisplay.default()
+    default_color_palette_ui = PlacementColorPalette.default()
+    GLOBAL_STATE.game_objects.append(default_color_palette_ui)
+    GLOBAL_STATE.renderdict[RenderLayer.UI].extend(
+        [default_placement_color_ui, default_color_palette_ui]
+    )

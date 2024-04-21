@@ -37,6 +37,8 @@ CLOCK = pygame.time.Clock()
 INITIAL_WINDOW_CAPTION = "Pathfinding"
 DEFAULT_FPS = 60
 
+PATHFIND_TICK = 1  # in seconds
+
 
 def init():
     global default_font
