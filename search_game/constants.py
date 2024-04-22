@@ -28,6 +28,7 @@ START_COLOR = pygame.Color(0, 255, 0)
 END_COLOR = pygame.Color(255, 0, 0)
 WALKED_COLOR = pygame.Color(0, 0, 255)
 VISITED_COLOR = pygame.Color(255, 255, 0, 128)
+ARROW_COLOR = pygame.Color(255, 0, 0)
 
 DEFAULT_COLOR_PALLETTE = [PATH_COLOR, START_COLOR, END_COLOR]
 

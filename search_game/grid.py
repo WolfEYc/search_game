@@ -6,6 +6,7 @@ import numpy as np
 import pygame
 
 from search_game.constants import (
+    ARROW_COLOR,
     COLORS,
     END_COLOR,
     GRID_LEFT,
@@ -15,9 +16,12 @@ from search_game.constants import (
     SCREEN_WIDTH,
     START_COLOR,
     VISITED_COLOR,
+    WALKED_COLOR,
     WALL_COLOR,
 )
 from search_game.renderable import Renderable
+
+Path = list[tuple[int, int]]
 
 
 class CellState(Enum):
@@ -38,6 +42,8 @@ class CellState(Enum):
             return CellState.Path
         if pygame_color == WALL_COLOR:
             return CellState.Wall
+        if pygame_color == VISITED_COLOR:
+            return CellState.Visited
         raise ValueError(f"Unknown grid color: {pygame_color}")
 
 
@@ -64,11 +70,13 @@ def draw_arrow(
 
 class Grid(Renderable):
     grid: np.ndarray
-    path: np.ndarray  # matrix of 2d points to store the parent of each visited cell
+    parents: np.ndarray  # matrix of 2d points to store the parent of each visited cell
     scale: int
     grid_width: int
     grid_height: int
     bounding_box: pygame.Rect
+    found_path: Optional[Path]
+    path_render_iter: int
     start_point: Optional[tuple[int, int]]
     end_point: Optional[tuple[int, int]]
 
@@ -80,12 +88,13 @@ class Grid(Renderable):
         self.grid_height = floor(grid_size.y)
         self.start_point = None
         self.end_point = None
+        self.path_render_iter = 0
 
         self.grid = np.zeros(
             shape=(self.grid_width, self.grid_height, COLORS),
             dtype=np.uint8,
         )
-        self.path = np.full(
+        self.parents = np.full(
             shape=(self.grid_width, self.grid_height, 2), dtype=np.int32, fill_value=-1
         )
 
@@ -104,57 +113,82 @@ class Grid(Renderable):
 
         return (grid_x, grid_y)
 
-    def place_square(self, grid_x: int, grid_y: int, color: pygame.Color):
-        grid_tuple = (grid_x, grid_y)
+    def place_square(self, pos: tuple[int, int], color: pygame.Color):
         if color == START_COLOR and self.start_point:
             self.grid[self.start_point] = PATH_COLOR
 
         if color == END_COLOR and self.end_point:
             self.grid[self.end_point] = PATH_COLOR
 
-        if color != START_COLOR and self.start_point == grid_tuple:
+        if color != START_COLOR and self.start_point == pos:
             self.start_point = None
 
-        if color != END_COLOR and self.end_point == grid_tuple:
+        if color != END_COLOR and self.end_point == pos:
             self.end_point = None
 
         if color == START_COLOR:
-            self.start_point = grid_tuple
+            self.start_point = pos
 
         if color == END_COLOR:
-            self.end_point = grid_tuple
+            self.end_point = pos
 
-        self.grid[grid_tuple] = color
+        self.grid[pos] = color
         print(f"{self.start_point=}, {self.end_point=}")
 
-    def get_cell_state(self, grid_x: int, grid_y: int) -> CellState:
-        color = self.grid[grid_x, grid_y]
+    def get_cell(self, pos: tuple[int, int]) -> CellState:
+        grid_color = self.grid[pos]
+        path_color = self.parents[pos]
+        color = grid_color if path_color[0] == -1 else path_color
         state = CellState.from_color(color)
         return state
 
-    def visit(self, parent_x: int, parent_y: int, visited_x: int, visited_y: int):
-        parent_path = self.path[visited_x, visited_y]
+    def visit(self, parent_pos: tuple[int, int], visited_pos: tuple[int, int]):
+        parent_path = self.parents[parent_pos]
         if parent_path[0] != -1:
             raise ValueError(
-                f"Already visited cell at ({visited_x}, {visited_y}) with parent {parent_path}"
+                f"Already visited cell at {visited_pos} with parent {parent_path}"
             )
-        parent_path = np.array([parent_x, parent_y], dtype=np.int32)
+        self.parents[visited_pos] = parent_pos
+
+    def get_parent(self, pos: tuple[int, int]) -> tuple[int, int]:
+        return tuple(self.parents[pos])
+
+    def reset_path(self):
+        self.found_path = None
+        self.path_render_iter = 0
+        self.parents.fill(-1)
+
+    def render_grid_rect(
+        self, screen: pygame.Surface, pos: tuple[int, int], color: pygame.Color
+    ):
+        offset_x, offset_y = self.bounding_box.topleft
+        pixel_x = pos[0] * self.scale + offset_x
+        pixel_y = pos[1] * self.scale + offset_y
+        rect = pygame.Rect(pixel_x, pixel_y, self.scale, self.scale)
+        pygame.draw.rect(screen, color=color, rect=rect)
 
     def render(self, screen: pygame.Surface):
-        offset_x, offset_y = self.bounding_box.topleft
         for x in range(self.grid_width):
             for y in range(self.grid_height):
-                color = self.grid[x, y]
-                pixel_x = x * self.scale + offset_x
-                pixel_y = y * self.scale + offset_y
-                rect = pygame.Rect(pixel_x, pixel_y, self.scale, self.scale)
-                pygame.draw.rect(screen, color=color, rect=rect)
+                pos = (x, y)
+                color = self.grid[pos]
+                self.render_grid_rect(screen, pos, color)
 
         for x in range(self.grid_width):
             for y in range(self.grid_height):
-                parent_pos = self.path[x, y]
+                pos = (x, y)
+                parent_pos = self.parents[pos]
                 if parent_pos[0] == -1:
                     continue
-                start_pos = pygame.Vector2(x, y)
+                start_pos = pygame.Vector2(pos)
                 end_pos = pygame.Vector2(parent_pos)
-                draw_arrow(screen, VISITED_COLOR, start_pos, end_pos)
+                self.render_grid_rect(screen, pos, VISITED_COLOR)
+                draw_arrow(screen, ARROW_COLOR, start_pos, end_pos)
+
+        if not self.found_path:
+            return
+
+        self.path_render_iter = min(self.path_render_iter + 1, len(self.found_path))
+        for i in range(self.path_render_iter):
+            pos = self.found_path[i]
+            self.render_grid_rect(screen, pos, WALKED_COLOR)

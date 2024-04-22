@@ -1,6 +1,7 @@
 import pygame
 
 from search_game import draw_grid
+from search_game.bfs_isaac import bfs
 from search_game.clock import Ticker
 from search_game.constants import PATHFIND_TICK
 from search_game.global_state import GLOBAL_STATE, Gamemode
@@ -11,13 +12,18 @@ clock = pygame.time.Clock()
 
 
 def pathfind_update():
-    if not pathfind_ticker.tick():
+    if GLOBAL_STATE.grid.found_path is not None or not pathfind_ticker.tick():
         return
-    print("Pathfinding update")
+
+    GLOBAL_STATE.grid.found_path = bfs(GLOBAL_STATE.grid)
+
+    if GLOBAL_STATE.grid.found_path is None:
+        return
+
+    print("Path found!")
 
 
 def pathfind_toggle():
-    global pathfinding
     if GLOBAL_STATE.key_event(pygame.KEYDOWN, pygame.K_SPACE):
         print("Toggling pathfind")
 

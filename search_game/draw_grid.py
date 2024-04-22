@@ -119,7 +119,7 @@ def handle_left_mouse():
     grid_pos = GLOBAL_STATE.grid.screen_to_grid(pos)
     if grid_pos is None:
         return
-    GLOBAL_STATE.grid.place_square(*grid_pos, placement_color)
+    GLOBAL_STATE.grid.place_square(grid_pos, placement_color)
 
 
 def handle_right_mouse():
@@ -128,7 +128,7 @@ def handle_right_mouse():
     grid_pos = GLOBAL_STATE.grid.screen_to_grid(pos)
     if grid_pos is None:
         return
-    GLOBAL_STATE.grid.place_square(*grid_pos, WALL_COLOR)
+    GLOBAL_STATE.grid.place_square(grid_pos, WALL_COLOR)
 
 
 def create_grid_loop():

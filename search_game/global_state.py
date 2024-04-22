@@ -101,5 +101,8 @@ class GlobalState:
         self.gamemode = gamemode
         self.main_loop = loop
 
+        if gamemode == Gamemode.DRAW:
+            self.grid.reset_path()
+
 
 GLOBAL_STATE = GlobalState()
