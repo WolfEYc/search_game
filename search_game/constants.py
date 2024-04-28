@@ -5,14 +5,14 @@ SCREEN_WIDTH = 800  # in pixels
 SCREEN_HEIGHT = SCREEN_WIDTH + UI_HEIGHT  # in pixels
 COLORS = 4  # RGBA
 ANTI_ALIAS_TEXT = True
-PATH_PAINTBRUSH_SIZE = 20  # in pixels
+PATH_PAINTBRUSH_SIZE = 10  # in pixels
 
 DEFAULT_FONT_COLOR = pygame.Color(255, 255, 255)
 DEFAULT_FONT_SIZE = 36
 DEFAULT_FONT_FILE = None
 
 UI_GRID_SCALE = 20  # in pixels
-GRID_SCALE = 10  # in pixels
+GRID_SCALE = 20  # in pixels
 GRID_HEIGHT = SCREEN_WIDTH // GRID_SCALE  # in grid units
 GRID_WIDTH = SCREEN_WIDTH // GRID_SCALE  # in grid units
 
