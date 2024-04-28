@@ -16,13 +16,16 @@ GRID_WIDTH = SCREEN_WIDTH // GRID_SCALE  # in grid units
 
 GRID_TOP = UI_HEIGHT
 GRID_LEFT = 0
-
+GLOW_STARTING_SIZE = 30
+GLOW_FADE_DURATION = 0.5  # in seconds
+GLOW_EXPONENT = 3
+GLOW_COLOR = pygame.Color(255, 0, 128)
 
 print(f"{GRID_SCALE=}")
 print(f"{GRID_HEIGHT=}")
 print(f"{GRID_WIDTH=}")
 
-WALL_COLOR = pygame.Color(0, 0, 0)
+WALL_COLOR = pygame.Color(0, 0, 0, 0)
 PATH_COLOR = pygame.Color(255, 255, 255)
 START_COLOR = pygame.Color(0, 255, 0)
 END_COLOR = pygame.Color(255, 0, 0)
@@ -38,7 +41,7 @@ CLOCK = pygame.time.Clock()
 INITIAL_WINDOW_CAPTION = "Pathfinding"
 DEFAULT_FPS = 60
 
-PATHFIND_TICK = 1  # in seconds
+PATHFIND_TICK = 0.05  # in seconds
 
 
 def init():
@@ -48,3 +51,7 @@ def init():
 
 def render_text(text: str):
     return default_font.render(text, ANTI_ALIAS_TEXT, DEFAULT_FONT_COLOR)
+
+
+def glow_sample_curve(glow_pct: float):
+    return glow_pct**GLOW_EXPONENT

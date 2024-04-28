@@ -3,6 +3,7 @@ from typing import Callable, Iterable
 
 import pygame
 
+from search_game import gameglobals
 from search_game.constants import (
     CLOCK,
     DEFAULT_FPS,
@@ -29,7 +30,6 @@ class GlobalState:
     screen: pygame.Surface
     renderdict: RenderDict
     grid: Grid
-    deltatime: float
     events: list[pygame.event.Event]
     gamemode: Gamemode
 
@@ -47,7 +47,6 @@ class GlobalState:
         self.main_loop = main_loop
         self.renderdict = generate_renderable_list()
         self.renderdict[RenderLayer.GRID] = [self.grid]
-        self.deltatime = 0
         self.events = []
         self.game_objects = []
         self.gamemode = gamemode
@@ -84,7 +83,7 @@ class GlobalState:
         self.render_objects()
 
         pygame.display.flip()
-        self.deltatime = CLOCK.tick(DEFAULT_FPS) / 1000
+        gameglobals.dt = CLOCK.tick(DEFAULT_FPS) / 1000
 
     def filter_events(self, event_type: int) -> Iterable[pygame.event.Event]:
         filtered_events = filter(lambda e: e.type == event_type, self.events)
@@ -98,11 +97,15 @@ class GlobalState:
         return any(e.type == event_type and e.key == key_code for e in filtered_events)
 
     def set_gamemode(self, gamemode: Gamemode, loop: list[Callable]):
+        self.grid.reset_path()
+
+        if gamemode == Gamemode.PLAY:
+            if not self.grid.is_ready():
+                return
+            self.grid.init_queue()
+
         self.gamemode = gamemode
         self.main_loop = loop
-
-        if gamemode == Gamemode.DRAW:
-            self.grid.reset_path()
 
 
 GLOBAL_STATE = GlobalState()

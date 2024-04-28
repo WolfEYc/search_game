@@ -5,10 +5,14 @@ from typing import Optional
 import numpy as np
 import pygame
 
+from search_game import gameglobals
 from search_game.constants import (
     ARROW_COLOR,
     COLORS,
     END_COLOR,
+    GLOW_COLOR,
+    GLOW_FADE_DURATION,
+    GLOW_STARTING_SIZE,
     GRID_LEFT,
     GRID_SCALE,
     GRID_TOP,
@@ -18,6 +22,7 @@ from search_game.constants import (
     VISITED_COLOR,
     WALKED_COLOR,
     WALL_COLOR,
+    glow_sample_curve,
 )
 from search_game.renderable import Renderable
 
@@ -32,8 +37,8 @@ class CellState(Enum):
     End = 4
 
     @staticmethod
-    def from_color(color: np.ndarray) -> "CellState":
-        pygame_color = pygame.Color(color[0], color[1], color[2], color[3])
+    def from_color(color) -> "CellState":
+        pygame_color = pygame.Color(color)
         if pygame_color == START_COLOR:
             return CellState.Start
         if pygame_color == END_COLOR:
@@ -42,8 +47,6 @@ class CellState(Enum):
             return CellState.Path
         if pygame_color == WALL_COLOR:
             return CellState.Wall
-        if pygame_color == VISITED_COLOR:
-            return CellState.Visited
         raise ValueError(f"Unknown grid color: {pygame_color}")
 
 
@@ -52,13 +55,21 @@ def draw_arrow(
     color: pygame.Color,
     start_pos: pygame.Vector2,
     end_pos: pygame.Vector2,
+    angle: float = 15,
     width: int = 2,
+    tip_length: float = 10.0,
 ):
+    if start_pos == end_pos:
+        return
     # draw the inital line
     pygame.draw.line(screen, color, start_pos, end_pos, width)
 
-    angle = start_pos.angle_to(end_pos)
     normalized_start_pos = start_pos - end_pos
+    arrow_len = normalized_start_pos.length()
+    if arrow_len < 20:
+        print(f"{arrow_len=}")
+    normalized_start_pos = normalized_start_pos.normalize() * tip_length
+
     normalized_left_arrow_side = normalized_start_pos.rotate(-angle)
     normalized_right_arrow_side = normalized_start_pos.rotate(angle)
     left_arrow_pos = normalized_left_arrow_side + end_pos
@@ -71,6 +82,7 @@ def draw_arrow(
 class Grid(Renderable):
     grid: np.ndarray
     parents: np.ndarray  # matrix of 2d points to store the parent of each visited cell
+    glows: np.ndarray
     scale: int
     grid_width: int
     grid_height: int
@@ -79,6 +91,7 @@ class Grid(Renderable):
     path_render_iter: int
     start_point: Optional[tuple[int, int]]
     end_point: Optional[tuple[int, int]]
+    bfs_queue: list[tuple[int, int]]
 
     def __init__(self, scale: int, bounding_box: pygame.Rect):
         self.scale = scale
@@ -89,13 +102,17 @@ class Grid(Renderable):
         self.start_point = None
         self.end_point = None
         self.path_render_iter = 0
-
+        self.found_path = None
+        self.bfs_queue = []
         self.grid = np.zeros(
             shape=(self.grid_width, self.grid_height, COLORS),
             dtype=np.uint8,
         )
         self.parents = np.full(
             shape=(self.grid_width, self.grid_height, 2), dtype=np.int32, fill_value=-1
+        )
+        self.glows = np.zeros(
+            shape=(self.grid_width, self.grid_height), dtype=np.float32
         )
 
     @staticmethod
@@ -110,10 +127,34 @@ class Grid(Renderable):
         grid_pos = (mouse_pos - self.bounding_box.topleft) // self.scale
         grid_x = floor(grid_pos.x)
         grid_y = floor(grid_pos.y)
+        grid_pos = (grid_x, grid_y)
 
-        return (grid_x, grid_y)
+        if self.in_bounds(grid_pos):
+            return grid_pos
+        return None
+
+    def in_bounds(self, grid_pos) -> bool:
+        return (
+            grid_pos[0] >= 0
+            and grid_pos[0] < self.grid_width
+            and grid_pos[1] >= 0
+            and grid_pos[1] < self.grid_height
+        )
+
+    def grid_to_screen(self, grid_pos) -> pygame.Vector2:
+        if not self.in_bounds(grid_pos):
+            raise ValueError(f"Invalid grid pos: {grid_pos}")
+        half_grid_scale = self.scale / 2
+
+        x = grid_pos[0] * self.scale + self.bounding_box.left + half_grid_scale
+        y = grid_pos[1] * self.scale + self.bounding_box.top + half_grid_scale
+
+        v = pygame.Vector2(x, y)
+        return v
 
     def place_square(self, pos: tuple[int, int], color: pygame.Color):
+        if not self.in_bounds(pos):
+            return
         if color == START_COLOR and self.start_point:
             self.grid[self.start_point] = PATH_COLOR
 
@@ -136,59 +177,107 @@ class Grid(Renderable):
         print(f"{self.start_point=}, {self.end_point=}")
 
     def get_cell(self, pos: tuple[int, int]) -> CellState:
+        if not self.in_bounds(pos):
+            return CellState.Wall
+        parent_pos = self.parents[pos]
+        if parent_pos[0] != -1:
+            return CellState.Visited
         grid_color = self.grid[pos]
-        path_color = self.parents[pos]
-        color = grid_color if path_color[0] == -1 else path_color
-        state = CellState.from_color(color)
+
+        state = CellState.from_color(grid_color)
         return state
 
-    def visit(self, parent_pos: tuple[int, int], visited_pos: tuple[int, int]):
-        parent_path = self.parents[parent_pos]
-        if parent_path[0] != -1:
-            raise ValueError(
-                f"Already visited cell at {visited_pos} with parent {parent_path}"
-            )
-        self.parents[visited_pos] = parent_pos
+    def is_ready(self) -> bool:
+        return self.start_point is not None and self.end_point is not None
 
-    def get_parent(self, pos: tuple[int, int]) -> tuple[int, int]:
-        return tuple(self.parents[pos])
+    def init_queue(self):
+        self.bfs_queue.clear()
+        if not self.start_point:
+            raise ValueError("Start point not set")
+        self.bfs_queue.append(self.start_point)
+        self.parents[self.start_point] = self.start_point
+        self.glows[self.start_point] = GLOW_FADE_DURATION
 
     def reset_path(self):
         self.found_path = None
         self.path_render_iter = 0
-        self.parents.fill(-1)
+        self.parents.fill(int(-1))
 
     def render_grid_rect(
-        self, screen: pygame.Surface, pos: tuple[int, int], color: pygame.Color
+        self,
+        screen: pygame.Surface,
+        pos,
+        color: pygame.Color,
+        scale: Optional[float] = None,
     ):
+        scale = scale or self.scale
         offset_x, offset_y = self.bounding_box.topleft
-        pixel_x = pos[0] * self.scale + offset_x
-        pixel_y = pos[1] * self.scale + offset_y
-        rect = pygame.Rect(pixel_x, pixel_y, self.scale, self.scale)
+        scale_offset = (scale - self.scale) // 2
+
+        pixel_x = pos[0] * self.scale + offset_x - scale_offset
+        pixel_y = pos[1] * self.scale + offset_y - scale_offset
+        rect = pygame.Rect(pixel_x, pixel_y, scale, scale)
         pygame.draw.rect(screen, color=color, rect=rect)
 
-    def render(self, screen: pygame.Surface):
-        for x in range(self.grid_width):
-            for y in range(self.grid_height):
-                pos = (x, y)
-                color = self.grid[pos]
-                self.render_grid_rect(screen, pos, color)
+    def grid_shape(self):
+        return (self.grid_width, self.grid_height)
 
-        for x in range(self.grid_width):
-            for y in range(self.grid_height):
-                pos = (x, y)
-                parent_pos = self.parents[pos]
-                if parent_pos[0] == -1:
-                    continue
-                start_pos = pygame.Vector2(pos)
-                end_pos = pygame.Vector2(parent_pos)
-                self.render_grid_rect(screen, pos, VISITED_COLOR)
-                draw_arrow(screen, ARROW_COLOR, start_pos, end_pos)
+    def grid_indexer(self):
+        return np.ndindex(self.grid_shape())
 
+    def render_base(self, screen: pygame.Surface):
+        for pos in self.grid_indexer():
+            color = self.grid[pos]
+            self.render_grid_rect(screen, pos, color)
+
+    def render_visited(self, screen: pygame.Surface):
+        for pos in self.grid_indexer():
+            if pos in [self.start_point, self.end_point] or self.parents[pos][0] == -1:
+                continue
+            self.render_grid_rect(screen, pos, VISITED_COLOR)
+
+    def render_arrows(self, screen: pygame.Surface):
+        for pos in self.grid_indexer():
+            parent_pos = self.parents[pos]
+            if parent_pos[0] == -1:
+                continue
+            parent_screen_pos = self.grid_to_screen(parent_pos)
+            child_screen_pos = self.grid_to_screen(pos)
+            draw_arrow(screen, ARROW_COLOR, parent_screen_pos, child_screen_pos)
+
+    def render_found_path(self, screen: pygame.Surface):
+        # render found path
         if not self.found_path:
             return
-
         self.path_render_iter = min(self.path_render_iter + 1, len(self.found_path))
         for i in range(self.path_render_iter):
             pos = self.found_path[i]
+            if pos in [self.start_point, self.end_point]:
+                continue
             self.render_grid_rect(screen, pos, WALKED_COLOR)
+
+    def render_glows(self, screen: pygame.Surface):
+        for pos in self.grid_indexer():
+            glow_time = self.glows[pos]
+            if glow_time < 0.001:
+                continue
+            lerp_percent = pygame.math.clamp(glow_time / GLOW_FADE_DURATION, 0, 1)
+            curved_percent = glow_sample_curve(lerp_percent)
+            glow_scalar = pygame.math.lerp(
+                GLOW_STARTING_SIZE, GRID_SCALE, curved_percent
+            )
+            self.render_grid_rect(
+                screen,
+                pos,
+                GLOW_COLOR,
+                glow_scalar,
+            )
+
+            self.glows[pos] = max(0, self.glows[pos] - gameglobals.dt)
+
+    def render(self, screen: pygame.Surface):
+        self.render_base(screen)
+        self.render_glows(screen)
+        self.render_visited(screen)
+        self.render_found_path(screen)
+        self.render_arrows(screen)

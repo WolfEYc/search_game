@@ -1,4 +1,4 @@
-from search_game.global_state import GLOBAL_STATE
+from search_game import gameglobals
 
 
 class Ticker:
@@ -10,7 +10,7 @@ class Ticker:
         self.thresh = thresh
 
     def tick(self) -> bool:
-        self.seconds += GLOBAL_STATE.deltatime
+        self.seconds += gameglobals.dt
         if self.seconds > self.thresh:
             self.seconds = 0
             return True
