@@ -32,6 +32,8 @@ class GlobalState:
     grid: Grid
     events: list[pygame.event.Event]
     gamemode: Gamemode
+    last_frame_presses: tuple[bool, bool, bool]
+    last_frame_mouse_pos: pygame.Vector2
 
     def init(
         self,
@@ -81,7 +83,8 @@ class GlobalState:
             game_object.update()
 
         self.render_objects()
-
+        self.last_frame_presses = pygame.mouse.get_pressed()
+        self.last_frame_mouse_pos = pygame.Vector2(pygame.mouse.get_pos())
         pygame.display.flip()
         gameglobals.dt = CLOCK.tick(DEFAULT_FPS) / 1000
 

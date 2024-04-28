@@ -39,10 +39,6 @@ class CellState(Enum):
     @staticmethod
     def from_color(color) -> "CellState":
         pygame_color = pygame.Color(color)
-        if pygame_color == START_COLOR:
-            return CellState.Start
-        if pygame_color == END_COLOR:
-            return CellState.End
         if pygame_color == PATH_COLOR:
             return CellState.Path
         if pygame_color == WALL_COLOR:
@@ -180,10 +176,13 @@ class Grid(Renderable):
         parent_pos = self.parents[pos]
         if parent_pos[0] != -1:
             return CellState.Visited
-        grid_color = self.grid[pos]
 
-        state = CellState.from_color(grid_color)
-        return state
+        if pos == self.start_point:
+            return CellState.Start
+        if pos == self.end_point:
+            return CellState.End
+
+        return CellState.from_color(self.grid[pos])
 
     def is_ready(self) -> bool:
         return self.start_point is not None and self.end_point is not None

@@ -4,8 +4,12 @@ import pygame
 
 from search_game.constants import (
     DEFAULT_COLOR_PALLETTE,
+    END_COLOR,
     GRID_SCALE,
     PATH_COLOR,
+    PATH_PAINTBRUSH_SIZE,
+    START_COLOR,
+    UI_GRID_SCALE,
     WALL_COLOR,
     render_text,
 )
@@ -52,8 +56,8 @@ class CurrentPlacementColorDisplay(Renderable):
         rect = pygame.Rect(
             left,
             top,
-            GRID_SCALE,
-            GRID_SCALE,
+            UI_GRID_SCALE,
+            UI_GRID_SCALE,
         )
         return CurrentPlacementColorDisplay(
             DEFAULT_PLACEMENT_COLOR_UI_POS, text_surface, rect
@@ -96,10 +100,10 @@ class PlacementColorPalette(Renderable, GameObject):
                     pos[0]
                     + text_surface.get_width()
                     + DEFAULT_PLACEMENT_COLOR_OFFSET[0]
-                    + x * (GRID_SCALE + DEFAULT_PALLETE_MARGIN),
+                    + x * (UI_GRID_SCALE + DEFAULT_PALLETE_MARGIN),
                     pos[1] + DEFAULT_PLACEMENT_COLOR_OFFSET[1],
-                    GRID_SCALE,
-                    GRID_SCALE,
+                    UI_GRID_SCALE,
+                    UI_GRID_SCALE,
                 ),
                 range(len(colors)),
             )
@@ -113,22 +117,45 @@ class PlacementColorPalette(Renderable, GameObject):
         )
 
 
-def handle_left_mouse():
-    pos = pygame.mouse.get_pos()
-    pos = pygame.Vector2(pos)
+def paint_point(pos: pygame.Vector2, color: pygame.Color):
     grid_pos = GLOBAL_STATE.grid.screen_to_grid(pos)
     if grid_pos is None:
         return
-    GLOBAL_STATE.grid.place_square(grid_pos, placement_color)
+    GLOBAL_STATE.grid.place_square(grid_pos, color)
+
+
+def paint_blob(pos: pygame.Vector2, color: pygame.Color, radius: float):
+    screen_pts = map(GLOBAL_STATE.grid.grid_to_screen, GLOBAL_STATE.grid.grid_indexer())
+    valid_screen_pts = filter(
+        lambda x: x.distance_to(pos) < PATH_PAINTBRUSH_SIZE, screen_pts
+    )
+    valid_grid_pts = map(GLOBAL_STATE.grid.screen_to_grid, valid_screen_pts)
+    valid_grid_pts_filter: filter[tuple[int, int]] = filter(
+        lambda x: x is not None,
+        valid_grid_pts,  # type: ignore
+    )
+
+    for grid_pos in valid_grid_pts_filter:
+        GLOBAL_STATE.grid.place_square(grid_pos, color)
+
+
+def paint(pos1: pygame.Vector2, color: pygame.Color):
+    if color in [START_COLOR, END_COLOR]:
+        paint_point(pos1, color)
+    else:
+        paint_blob(pos1, color, PATH_PAINTBRUSH_SIZE)
+
+
+def handle_left_mouse():
+    pos = pygame.mouse.get_pos()
+    pos = pygame.Vector2(pos)
+    paint(pos, placement_color)
 
 
 def handle_right_mouse():
     pos = pygame.mouse.get_pos()
     pos = pygame.Vector2(pos)
-    grid_pos = GLOBAL_STATE.grid.screen_to_grid(pos)
-    if grid_pos is None:
-        return
-    GLOBAL_STATE.grid.place_square(grid_pos, WALL_COLOR)
+    paint(pos, WALL_COLOR)
 
 
 def create_grid_loop():
