@@ -65,9 +65,7 @@ def draw_arrow(
     pygame.draw.line(screen, color, start_pos, end_pos, width)
 
     normalized_start_pos = start_pos - end_pos
-    arrow_len = normalized_start_pos.length()
-    if arrow_len < 20:
-        print(f"{arrow_len=}")
+
     normalized_start_pos = normalized_start_pos.normalize() * tip_length
 
     normalized_left_arrow_side = normalized_start_pos.rotate(-angle)
